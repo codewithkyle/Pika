@@ -5,6 +5,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <assert.h>
+#include <limits.h>
+
 typedef uint64_t u64;
 typedef int64_t i64;
 typedef uint32_t u32;
@@ -15,7 +18,6 @@ typedef uint8_t u8;
 typedef int8_t i8;
 typedef uint32_t b32;
 
-#include <assert.h>
 
 #ifdef PLATFORM_WEB
   #define WASM_EXPORT(name) __attribute__((export_name(#name))) __attribute__((used))
@@ -24,16 +26,27 @@ typedef uint32_t b32;
 #endif
 
 enum { BYTES_PER_PIXEL = 4 }; // RGBA
+enum { PAGE_SIZE = 65536 };
 
 extern i32 memory_grow(i32 pages);
 extern i32 wasm_memory_size_pages();
 extern void out_of_memory();
 extern unsigned char __heap_base;
-static u8 *heap_ptr;
-static u8 *heap_limit;
-const size_t PAGE = 65536;
-static u8* DISPLAY_BUFFER;
-static size_t STRIDE;
+
+struct heap {
+    u8 *ptr;
+    u8 *limit;
+};
+static struct heap heap = {0};
+
+struct framebuffer {
+    u8 *buffer;
+    size_t stride;
+    u32 width_px;
+    u32 height_px;
+    size_t align;
+};
+static struct framebuffer display = {0};
 
 static inline uintptr_t align_up_uintptr(uintptr_t x, size_t align)
 {
@@ -59,9 +72,9 @@ static inline void heap_init(void)
 {
     uintptr_t base = (uintptr_t)&__heap_base;
     base = align_up_uintptr(base, 64);
-    heap_ptr = (u8*)base;
-    heap_limit = (u8*)((uintptr_t)wasm_memory_size_pages() * PAGE);
-    assert(heap_ptr <= heap_limit);
+    heap.ptr = (u8*)base;
+    heap.limit = (u8*)((uintptr_t)wasm_memory_size_pages() * PAGE_SIZE);
+    assert(heap.ptr <= heap.limit);
 }
 
 // NOTE: u8 = uint8_t = 1 byte = 8 bits
@@ -70,25 +83,23 @@ static inline void heap_init(void)
 // heap buffer with guaranteed alignment.
 static inline u8* heap_alloc(size_t bytes, size_t align)
 {
-    u8* p = align_up_ptr(heap_ptr, align);
-    if (bytes > (SIZE_MAX - (size_t)(p - (u8*)0)))
+    assert(align && ((align & (align - 1)) == 0));
+    u8* p = align_up_ptr(heap.ptr, align);
+    uintptr_t paddr = (uintptr_t)p;
+    if ((uintptr_t)bytes > UINTPTR_MAX - paddr) return NULL;
+    uintptr_t endaddr = paddr + (uintptr_t)bytes;
+    if (endaddr > (uintptr_t)heap.limit)
     {
-        return NULL;
-    }
-    u8* end = p + bytes;
-    if (end > heap_limit)
-    {
-        size_t deficit_bytes = (size_t)(end - heap_limit);
-        size_t pages = (deficit_bytes + PAGE - 1) / PAGE;
+        size_t deficit_bytes = (size_t)(endaddr - (uintptr_t)heap.limit);
+        size_t pages = (deficit_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
         pages += MAX(1, pages >> 2);
+        if (pages > (size_t)INT32_MAX) pages = (size_t)INT32_MAX;
         i32 old_pages = memory_grow((i32)pages);
-        if (old_pages < 0)
-        {
-            return NULL;
-        }
-        heap_limit = (u8*)((uintptr_t)wasm_memory_size_pages() * PAGE);
+        if (old_pages < 0) return NULL;
+        heap.limit = (u8*)((uintptr_t)wasm_memory_size_pages() * PAGE_SIZE);
+        assert((uintptr_t)heap.ptr <= (uintptr_t)heap.limit);
     }
-    heap_ptr = end;
+    heap.ptr = (u8*)endaddr;
     return p;
 }
 
@@ -117,9 +128,9 @@ static inline u8* alloc_display_buffer(u32 width_px, u32 height_px, size_t align
     return base;
 }
 
-static inline u8* pixel_ptr(u8* base, size_t stride_bytes, size_t x, size_t y)
+static inline u8* pixel_ptr(const struct framebuffer* d, size_t x, size_t y)
 {
-    return base + y * stride_bytes + x * BYTES_PER_PIXEL;
+    return d->buffer + y * d->stride + x * BYTES_PER_PIXEL;
 }
 
 WASM_EXPORT("engine_init")
@@ -132,12 +143,16 @@ WASM_EXPORT("set_display_size")
 void set_display_size(u32 width, u32 height)
 {
     assert(width > 0 && height > 0);
-    DISPLAY_BUFFER = alloc_display_buffer(width, height, 64, &STRIDE);
-    if (!DISPLAY_BUFFER)
+    display.align = 64;
+    u8* base = alloc_display_buffer(width, height, display.align, &display.stride);
+    if (!base)
     {
         return out_of_memory();
     }
-    assert(STRIDE % BYTES_PER_PIXEL == 0);
+    display.buffer = base;
+    display.width_px = width;
+    display.height_px = height;
+    assert(display.stride % BYTES_PER_PIXEL == 0);
 }
 
 WASM_EXPORT("render_background")
