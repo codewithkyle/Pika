@@ -1,11 +1,22 @@
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
+
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
+
+#ifndef ASSERT_H
+#define ASSERT_H
+
+#ifdef NDEBUG
+# define assert(x) ((void)0)
+#else
+# define assert(x) ((x) ? (void)0 : __builtin_trap())
+#endif
+
+#endif
 
 #include <stdint.h>
 #include <stddef.h>
-#include <assert.h>
 #include <limits.h>
 
 typedef uint64_t u64;
@@ -169,14 +180,7 @@ void game_update(f32 dt)
 #ifdef PLATFORM_NATIVE
 int main(void)
 {
-    game_init(false);
-    while (!WindowShouldClose())
-    {
-        game_update(GetFrameTime());
-    }
-
-    CloseWindow();
-
+    game_init(0);
     return 0;
 }
 #endif
