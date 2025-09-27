@@ -1,5 +1,4 @@
 import { Renderer } from "./renderer.js";
-import { ThreeJSRenderer } from "./ThreeJSRenderer.js"
 
 // NOTE: constants(ish)
 let WIDTH = window.innerWidth;
@@ -27,8 +26,6 @@ document.addEventListener("visibilitychange", ()=>{
 
 WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     env: make_env({
-        BeginDrawing: ()=>{},
-        EndDrawing: ()=>{},
         InitWindow: (width, height, text_ptr) => {
             const buffer = wasm.instance.exports.memory.buffer;
             const text = cstr_by_ptr(buffer, text_ptr);
@@ -44,7 +41,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     /** @type {HTMLCanvasElement} */
     const canvas = document.getElementById("canvas");
 
-    renderer = new ThreeJSRenderer().init(canvas).resize(WIDTH, HEIGHT);
+    renderer = new Renderer().init(canvas).resize(WIDTH, HEIGHT);
 
     wasm.instance.exports.game_init(params.get("debug")?.length ? 1 : 0);
     window.requestAnimationFrame(first);
