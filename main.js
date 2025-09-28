@@ -1,8 +1,9 @@
 import { Renderer } from "./renderer.js";
 
 // NOTE: constants(ish)
-let WIDTH = window.innerWidth;
-let HEIGHT = window.innerHeight;
+const DPR = Math.max(1, window.devicePixelRatio || 1);
+let WIDTH = Math.floor(window.innerWidth * DPR);
+let HEIGHT = Math.floor(window.innerHeight * DPR);
 const MAX_DT = 0.033;
 
 /** @type {number} */
