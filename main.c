@@ -52,12 +52,15 @@ static struct heap heap = {0};
 
 struct framebuffer {
     u8 *buffer;
+    u8 *back_buffer;
     size_t stride;
     u32 width_px;
     u32 height_px;
     u32 max_width_px;
     u32 max_height_px;
     size_t align;
+    u32 frame_version;
+    b32 dirty;
 };
 static struct framebuffer display = {0};
 
@@ -175,17 +178,45 @@ void set_display_size(u32 width, u32 height)
     display.buffer = base;
     assert(display.stride % BYTES_PER_PIXEL == 0);
     assert(display.stride >= (size_t)display.max_width_px * BYTES_PER_PIXEL);
+
+    size_t back_stride;
+    u8* back_base = alloc_display_buffer(display.max_width_px, display.max_height_px, display.align, &back_stride);
+    if (!back_base) return out_of_memory();
+    display.back_buffer = back_base;
+    assert(back_stride == display.stride);
+
+    display.frame_version = 0;
 }
 
-WASM_EXPORT("render_background")
-void render_background()
+WASM_EXPORT("render")
+u32 render()
 {
+    // NOTE: for testing we will be filling the screen every render.
+    // TODO: reset back to 0 after POC
+    display.dirty = 1;
+
+    u32 color = 0xFF0000FF;
+    for (u32 y = 0; y < display.height_px; y++) {
+        u32 *row = (u32 *)(display.back_buffer + y * display.stride);
+        for (u32 x = 0; x < display.width_px; x++) {
+            row[x] = color;
+        }
+    }
+
+    if (display.dirty)
+    {
+        u8* p = display.buffer;
+        display.buffer = display.back_buffer;
+        display.back_buffer = p;
+        display.frame_version++;
+    }
+
+    return display.frame_version;
 }
 
-WASM_EXPORT("game_update")
-void game_update(f32 dt)
+WASM_EXPORT("update")
+void update(f32 dt)
 {
-    render_background();
 }
 
 #ifdef PLATFORM_NATIVE
