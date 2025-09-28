@@ -41,7 +41,7 @@ enum { PAGE_SIZE = 65536 };
 
 extern i32 memory_grow(i32 pages);
 extern i32 wasm_memory_size_pages();
-extern void out_of_memory();
+extern void out_of_memory(void);
 extern unsigned char __heap_base;
 
 struct heap {
@@ -55,6 +55,8 @@ struct framebuffer {
     size_t stride;
     u32 width_px;
     u32 height_px;
+    u32 max_width_px;
+    u32 max_height_px;
     size_t align;
 };
 static struct framebuffer display = {0};
@@ -148,22 +150,31 @@ WASM_EXPORT("engine_init")
 void engine_init(b32 is_debug)
 {
     heap_init();
+    display.align = 64;
 }
 
 WASM_EXPORT("set_display_size")
 void set_display_size(u32 width, u32 height)
 {
     assert(width > 0 && height > 0);
-    display.align = 64;
-    u8* base = alloc_display_buffer(width, height, display.align, &display.stride);
-    if (!base)
+    if (width <= display.max_width_px && height <= display.max_height_px)
     {
-        return out_of_memory();
+        display.width_px = width;
+        display.height_px = height;
+        return;
     }
-    display.buffer = base;
+
+    display.max_width_px = width;
+    display.max_height_px = height;
     display.width_px = width;
     display.height_px = height;
+    assert(display.width_px <= display.max_width_px && display.height_px <= display.max_height_px);
+
+    u8* base = alloc_display_buffer(display.max_width_px, display.max_height_px, display.align, &display.stride);
+    if (!base) return out_of_memory();
+    display.buffer = base;
     assert(display.stride % BYTES_PER_PIXEL == 0);
+    assert(display.stride >= (size_t)display.max_width_px * BYTES_PER_PIXEL);
 }
 
 WASM_EXPORT("render_background")
