@@ -11,6 +11,9 @@ let previous = undefined;
 /** @type {WebAssembly.WebAssemblyInstantiatedSource} */
 let wasm = undefined;
 
+/** @type {ArrayBuffer} */
+let memBuf = undefined;
+
 /** @type {Renderer} */
 let renderer = undefined;
 
@@ -34,7 +37,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     }),
 }).then((wasmModule) => {
     console.log("WASM instantiated", wasmModule);
-    var params = new URLSearchParams(window.location.search);
+    //var params = new URLSearchParams(window.location.search);
 
     wasm = wasmModule;
 
@@ -42,8 +45,10 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     const canvas = document.getElementById("canvas");
 
     renderer = new Renderer().init(canvas).resize(WIDTH, HEIGHT);
-
-    wasm.instance.exports.game_init(params.get("debug")?.length ? 1 : 0);
+    wasm.instance.exports.engine_init();
+    wasm.instance.exports.set_display_size(WIDTH, HEIGHT);
+    memBuf = wasm.instance.exports.memory.buffer;
+    renderer.updateView(wasm, wasm.instance.exports.get_frame_addr());
     window.requestAnimationFrame(first);
 }).catch((e) => {
     console.error("Failed to instantiate WASM", e);
@@ -59,8 +64,14 @@ function next(timestamp) {
     previous = timestamp;
     if (doUpdate){
         if (!skipNextUpdate) {
-            wasm.instance.exports.game_update(dt);
-            renderer.render();
+            wasm.instance.exports.update(dt);
+            wasm.instance.exports.render();
+            const currBuf = wasm.instance.exports.memory.buffer;
+            if (memBuf != currBuf) {
+                renderer.updateView(wasm, wasm.instance.exports.get_frame_addr());
+                memBuf = currBuf;
+            }
+            renderer.render(currBuf);
         } else {
             skipNextUpdate = false;
         }

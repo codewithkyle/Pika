@@ -59,10 +59,27 @@ struct framebuffer {
     u32 max_width_px;
     u32 max_height_px;
     size_t align;
-    u32 frame_version;
     b32 dirty;
 };
 static struct framebuffer display = {0};
+
+struct frame {
+    uintptr_t ptr;
+    u32 stride;
+    u32 width;
+    u32 height;
+    u32 bpp;
+    u32 version;
+};
+static struct frame frame = {
+    .bpp = 4,
+    .version = 0,
+};
+WASM_EXPORT("get_frame_addr")
+u32 get_frame_addr()
+{
+    return (u32)(uintptr_t)&frame;
+}
 
 static inline uintptr_t align_up_uintptr(uintptr_t x, size_t align)
 {
@@ -150,7 +167,7 @@ static inline u8* pixel_ptr(const struct framebuffer* d, size_t x, size_t y)
 }
 
 WASM_EXPORT("engine_init")
-void engine_init(b32 is_debug)
+void engine_init()
 {
     heap_init();
     display.align = 64;
@@ -164,6 +181,9 @@ void set_display_size(u32 width, u32 height)
     {
         display.width_px = width;
         display.height_px = height;
+        frame.version = 0;
+        frame.width = display.width_px;
+        frame.height = display.height_px;
         return;
     }
 
@@ -185,11 +205,15 @@ void set_display_size(u32 width, u32 height)
     display.back_buffer = back_base;
     assert(back_stride == display.stride);
 
-    display.frame_version = 0;
+    frame.version = 0;
+    frame.width = display.width_px;
+    frame.height = display.height_px;
+    frame.stride = display.stride;
+    frame.ptr = (uintptr_t)display.buffer;
 }
 
 WASM_EXPORT("render")
-u32 render()
+void render()
 {
     // NOTE: for testing we will be filling the screen every render.
     // TODO: reset back to 0 after POC
@@ -208,10 +232,9 @@ u32 render()
         u8* p = display.buffer;
         display.buffer = display.back_buffer;
         display.back_buffer = p;
-        display.frame_version++;
+        frame.ptr = (uintptr_t)display.buffer;
+        frame.version++;
     }
-
-    return display.frame_version;
 }
 
 WASM_EXPORT("update")
@@ -222,7 +245,7 @@ void update(f32 dt)
 #ifdef PLATFORM_NATIVE
 int main(void)
 {
-    game_init(0);
+    game_init();
     return 0;
 }
 #endif
