@@ -30,6 +30,7 @@ export class Renderer {
     }
 
     makeProgram() {
+        console.log("Make shader program");
         this.shaderProgram = new ShaderProgram(this.gl)
         .add_vertex_shader(frame_vert_shader)
         .add_fragment_shader(frame_frag_shader)
@@ -76,9 +77,6 @@ export class Renderer {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
         this.gl.uniform1i(this.shaderProgram.get_uniform("u_texture"), 0);
 
-        this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 4);
-        this.gl.pixelStorei(this.gl.UNPACK_ROW_LENGTH, 0);
-
         this.gl.bindVertexArray(null);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
     }
@@ -89,6 +87,7 @@ export class Renderer {
     * @returns {Renderer}
     */
     resize(width, height) {
+        console.log("Resize", width, height);
         const dpr = Math.max(1, window.devicePixelRatio || 1);
         this.w = Math.floor(width * dpr);
         this.h = Math.floor(height * dpr);
@@ -111,6 +110,8 @@ export class Renderer {
         this.gl.bufferData(this.gl.ARRAY_BUFFER, verts, this.gl.STATIC_DRAW);
         this.gl.bindVertexArray(null);
 
+        this.gl.deleteTexture(this.shaderProgram.get_texture());
+        this.shaderProgram.create_texture();
         this.gl.activeTexture(this.gl.TEXTURE0);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.shaderProgram.get_texture());
         this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA8, this.w, this.h);
@@ -155,10 +156,14 @@ export class Renderer {
             const len = frame.stride * frame.height;
             const pixels = new Uint8Array(buffer, frame.ptr, len);
 
+            const rowLengthPixels = frame.stride / 4;
+            this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 4);
+            this.gl.pixelStorei(this.gl.UNPACK_ROW_LENGTH, rowLengthPixels);
+
             this.gl.texSubImage2D(
                 this.gl.TEXTURE_2D, 0,
                 0, 0,
-                this.w, this.h,
+                frame.width, frame.height,
                 this.gl.RGBA, this.gl.UNSIGNED_BYTE,
                 pixels
             );

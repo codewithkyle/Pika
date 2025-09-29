@@ -30,10 +30,11 @@ document.addEventListener("visibilitychange", ()=>{
 
 WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     env: make_env({
-        InitWindow: (width, height, text_ptr) => {
-            const buffer = wasm.instance.exports.memory.buffer;
-            const text = cstr_by_ptr(buffer, text_ptr);
-            document.title = text;
+        memory_grow: (pages) => wasm.instance.exports.memory.grow(pages),
+        wasm_memory_size_pages: () => wasm.instance.exports.memory.buffer.byteLength / 65536,
+        out_of_memory: () => {
+            alert("OOM");
+            debugger;
         },
     }),
 }).then((wasmModule) => {
@@ -41,6 +42,8 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), {
     //var params = new URLSearchParams(window.location.search);
 
     wasm = wasmModule;
+
+    console.log(wasm.instance.exports);
 
     /** @type {HTMLCanvasElement} */
     const canvas = document.getElementById("canvas");

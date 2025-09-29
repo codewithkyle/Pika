@@ -75,7 +75,7 @@ static struct frame frame = {
     .bpp = 4,
     .version = 0,
 };
-WASM_EXPORT("get_frame_addr")
+WASM_EXPORT(get_frame_addr)
 u32 get_frame_addr()
 {
     return (u32)(uintptr_t)&frame;
@@ -166,14 +166,14 @@ static inline u8* pixel_ptr(const struct framebuffer* d, size_t x, size_t y)
     return d->buffer + y * d->stride + x * BYTES_PER_PIXEL;
 }
 
-WASM_EXPORT("engine_init")
+WASM_EXPORT(engine_init)
 void engine_init()
 {
     heap_init();
     display.align = 64;
 }
 
-WASM_EXPORT("set_display_size")
+WASM_EXPORT(set_display_size)
 void set_display_size(u32 width, u32 height)
 {
     assert(width > 0 && height > 0);
@@ -212,17 +212,17 @@ void set_display_size(u32 width, u32 height)
     frame.ptr = (uintptr_t)display.buffer;
 }
 
-WASM_EXPORT("render")
+WASM_EXPORT(render)
 void render()
 {
     // NOTE: for testing we will be filling the screen every render.
     // TODO: reset back to 0 after POC
     display.dirty = 1;
 
-    u32 color = 0xFF0000FF;
+    u32 color = 0xFF181818;
     for (u32 y = 0; y < display.height_px; y++) {
         u32 *row = (u32 *)(display.back_buffer + y * display.stride);
-        for (u32 x = 0; x < display.width_px; x++) {
+        for (u32 x = 0; x < display.width_px + display.stride; x++) {
             row[x] = color;
         }
     }
@@ -237,7 +237,7 @@ void render()
     }
 }
 
-WASM_EXPORT("update")
+WASM_EXPORT(update)
 void update(f32 dt)
 {
 }
