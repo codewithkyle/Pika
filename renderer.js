@@ -31,7 +31,6 @@ export class Renderer {
     }
 
     makeProgram() {
-        console.log("Make shader program");
         this.shaderProgram = new ShaderProgram(this.gl)
         .add_vertex_shader(frame_vert_shader)
         .add_fragment_shader(frame_frag_shader)
@@ -89,9 +88,8 @@ export class Renderer {
     */
     resize(width, height) {
         console.log("Resize", width, height);
-        const dpr = Math.max(1, window.devicePixelRatio || 1);
-        this.w = Math.floor(width * dpr);
-        this.h = Math.floor(height * dpr);
+        this.w = width;
+        this.h = height;
 
         if (this.canvas != undefined) {
             this.canvas.width = this.w;
@@ -137,7 +135,6 @@ export class Renderer {
         if (!this.shaderProgram) this.makeProgram();
 
         const frame = this.view.read();
-        const len = frame.stride * frame.height;
 
         this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
         this.gl.clearColor(0,0,0,0);
@@ -155,7 +152,8 @@ export class Renderer {
             this.gl.drawingBufferHeight
         );
 
-        if ((frame.version != this.lastFrame || len != this.lastLen) && frame.width == this.w && frame.height == this.h) {
+        const len = frame.stride * frame.height;
+        if (frame.version != this.lastFrame || len != this.lastLen) {
             const pixels = new Uint8Array(buffer, frame.ptr, len);
             console.log("paint", frame.version, len);
 
