@@ -9,6 +9,7 @@ export class Renderer {
         this.h = Math.floor(window.innerHeight * dpr);
         this.canvas = undefined;
         this.lastFrame = 0;
+        this.lastLen = 0;
         this.view = new FrameView();
         this.gl = undefined;
         this.shaderProgram = undefined;
@@ -124,6 +125,7 @@ export class Renderer {
     * @param {number} addr
     */
     updateView(wasm, addr) {
+        console.log("updating data view");
         this.view.make(wasm, addr);
     }
 
@@ -135,6 +137,7 @@ export class Renderer {
         if (!this.shaderProgram) this.makeProgram();
 
         const frame = this.view.read();
+        const len = frame.stride * frame.height;
 
         this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
         this.gl.clearColor(0,0,0,0);
@@ -152,9 +155,9 @@ export class Renderer {
             this.gl.drawingBufferHeight
         );
 
-        if (frame.version != this.lastFrame && frame.width == this.w && frame.height == this.h) {
-            const len = frame.stride * frame.height;
+        if ((frame.version != this.lastFrame || len != this.lastLen) && frame.width == this.w && frame.height == this.h) {
             const pixels = new Uint8Array(buffer, frame.ptr, len);
+            console.log("paint", frame.version, len);
 
             const rowLengthPixels = frame.stride / 4;
             this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 4);
@@ -173,5 +176,6 @@ export class Renderer {
         this.gl.bindVertexArray(null);
 
         this.lastFrame = frame.version;
+        this.lastLen = len;
     }
 }

@@ -36,6 +36,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), {
             alert("OOM");
             debugger;
         },
+        console_log: () => console.log("HERE"),
     }),
 }).then((wasmModule) => {
     console.log("WASM instantiated", wasmModule);
@@ -129,3 +130,23 @@ function color_hex(color) {
     const a = ((color>>(3*8))&0xFF).toString(16).padStart(2, "0");
     return `#${r}${g}${b}${a}`;
 }
+
+const debounce = (callback, wait) => {
+  let timeoutId = null;
+
+  return (...args) => {
+    window.clearTimeout(timeoutId);
+
+    timeoutId = window.setTimeout(() => {
+      callback.apply(null, args);
+    }, wait);
+  };
+}
+
+const handleWindowResize = debounce(() => {
+    WIDTH = Math.floor(window.innerWidth * DPR);
+    HEIGHT = Math.floor(window.innerHeight * DPR);
+    wasm.instance.exports.set_display_size(WIDTH, HEIGHT);
+    renderer.resize(WIDTH, HEIGHT);
+}, 300);
+window.addEventListener("resize", handleWindowResize);

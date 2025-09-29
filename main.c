@@ -42,7 +42,12 @@ enum { PAGE_SIZE = 65536 };
 extern i32 memory_grow(i32 pages);
 extern i32 wasm_memory_size_pages();
 extern void out_of_memory(void);
+extern void console_log(void);
 extern unsigned char __heap_base;
+
+// TODO: remove
+static f32 bg_color_flip_timer = 5.0;
+static u32 bg_color = 0xFFFF0000;
 
 struct heap {
     u8 *ptr;
@@ -60,6 +65,7 @@ struct framebuffer {
     u32 max_height_px;
     size_t align;
     b32 dirty;
+    b32 needs_repaint;
 };
 static struct framebuffer display = {0};
 
@@ -178,20 +184,23 @@ WASM_EXPORT(set_display_size)
 void set_display_size(u32 width, u32 height)
 {
     assert(width > 0 && height > 0);
+
+    display.needs_repaint = 1;
+    display.width_px = width;
+    display.height_px = height;
+    frame.version = 0;
+    frame.width = display.width_px;
+    frame.height = display.height_px;
+
+    // NOTE: early return if the new canvas is smaller than the largest possible. No allocation needed.
     if (width <= display.max_width_px && height <= display.max_height_px)
     {
-        display.width_px = width;
-        display.height_px = height;
-        frame.version = 0;
-        frame.width = display.width_px;
-        frame.height = display.height_px;
         return;
     }
 
+    console_log();
     display.max_width_px = width;
     display.max_height_px = height;
-    display.width_px = width;
-    display.height_px = height;
     assert(display.width_px <= display.max_width_px && display.height_px <= display.max_height_px);
 
     u8* base = alloc_display_buffer(display.max_width_px, display.max_height_px, display.align, &display.stride);
@@ -206,9 +215,6 @@ void set_display_size(u32 width, u32 height)
     display.back_buffer = back_base;
     assert(back_stride == display.stride);
 
-    frame.version = 0;
-    frame.width = display.width_px;
-    frame.height = display.height_px;
     frame.stride = display.stride;
     frame.ptr = (uintptr_t)display.buffer;
 }
@@ -216,31 +222,49 @@ void set_display_size(u32 width, u32 height)
 WASM_EXPORT(render)
 void render()
 {
-    // NOTE: for testing we will be filling the screen every render.
-    // TODO: reset back to 0 after POC
-    display.dirty = 1;
-
-    u32 color = 0xFF181818;
-    for (u32 y = 0; y < display.height_px; y++) {
-        u32 *row = (u32 *)(display.back_buffer + y * display.stride);
-        for (u32 x = 0; x < display.width_px + display.stride; x++) {
-            row[x] = color;
-        }
-    }
-
-    if (display.dirty)
+    if (display.dirty || display.needs_repaint)
     {
+        // NOTE: backfill canvas with grey
+        for (u32 y = 0; y < display.height_px; y++) {
+            u32 *row = (u32 *)(display.back_buffer + y * display.stride);
+            for (u32 x = 0; x < display.width_px + display.stride; x++) {
+                row[x] = bg_color;
+            }
+        }
+
         u8* p = display.buffer;
         display.buffer = display.back_buffer;
         display.back_buffer = p;
         frame.ptr = (uintptr_t)display.buffer;
         frame.version++;
+        display.needs_repaint = 0;
     }
 }
 
 WASM_EXPORT(update)
 void update(f32 dt)
 {
+    display.dirty = 0;
+
+    bg_color_flip_timer -= dt;
+
+    if (bg_color_flip_timer <= 0)
+    {
+        if (bg_color == 0xFFFF0000)
+        {
+            bg_color = 0xFF00FF00;
+        }
+        else if (bg_color == 0xFF00FF00)
+        {
+            bg_color = 0xFF0000FF;
+        }
+        else if (bg_color == 0xFF0000FF)
+        {
+            bg_color = 0xFFFF0000;
+        }
+        display.dirty = 1;
+        bg_color_flip_timer = 5.0;
+    }
 }
 
 #ifdef PLATFORM_NATIVE
