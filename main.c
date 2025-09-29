@@ -85,6 +85,7 @@ static inline uintptr_t align_up_uintptr(uintptr_t x, size_t align)
 {
     assert((align & (align - 1)) == 0);
     assert(align > 0);
+    // NOTE: bitmask rounds up X to nearest multiple of align
     return (x + (align - 1)) & ~(uintptr_t)(align - 1);
 }
 
@@ -136,7 +137,7 @@ static inline u8* heap_alloc(size_t bytes, size_t align)
     return p;
 }
 
-static inline u64 compute_stride_bytes(u32 width_pixels, size_t align_bytes)
+static inline u64 compute_display_stride_bytes(u32 width_pixels, size_t align_bytes)
 {
     u64 raw = (u64)width_pixels * (u64)BYTES_PER_PIXEL;
     return align_up(raw, (u64)align_bytes);
@@ -145,7 +146,7 @@ static inline u64 compute_stride_bytes(u32 width_pixels, size_t align_bytes)
 static inline u8* alloc_display_buffer(u32 width_px, u32 height_px, size_t align_bytes, size_t* out_stride_bytes)
 {
     assert(align_bytes && ((align_bytes & (align_bytes - 1)) == 0));
-    u64 stride64 = compute_stride_bytes(width_px, align_bytes);
+    u64 stride64 = compute_display_stride_bytes(width_px, align_bytes);
     if (stride64 > (u64)SIZE_MAX) return NULL;
 
     u64 total64 = stride64 * (u64)height_px;
